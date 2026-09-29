@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>BidParse | Turn Messy Supplier Invoices into Clean Bids</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 flex items-center justify-center min-h-screen p-6">
+  <div class="max-w-xl w-full bg-slate-800 p-8 rounded-2xl border border-slate-700 shadow-2xl">
+    <div class="flex items-center gap-3">
+  <svg viewBox="0 0 100 100" class="w-10 h-10 drop-shadow-lg">
+    <rect x="15" y="15" width="70" height="70" rx="12" fill="#064E3B" stroke="#34D399" stroke-width="4"/>
+    <path d="M15 40 L85 40 M15 60 L85 60 M40 15 L40 85 M60 15 L60 85" stroke="#10B981" stroke-width="2" opacity="0.4"/>
+    <rect x="40" y="40" width="20" height="20" fill="#34D399"/>
+    <path d="M44 50 L48 54 L56 45" fill="none" stroke="#064E3B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M75 10 L85 20 M85 10 L75 20" stroke="#34D399" stroke-width="3" stroke-linecap="round"/>
+  </svg>
+  <h1 class="text-3xl font-black tracking-tight text-white">Bid<span class="text-emerald-400">Parse</span></h1>
+</div>
+    <p class="text-slate-400 mb-6 text-sm">Drop one or multiple supplier PDFs, quotes, or receipts below. Get back an organized, standardized Excel sheet in seconds.</p>
+
+    <div id="drop-area" class="border-2 border-dashed border-slate-600 rounded-xl p-8 text-center cursor-pointer hover:border-emerald-500 transition">
+      <input type="file" id="file-input" class="hidden" accept=".pdf" multiple />
+      <p class="text-slate-300 font-medium" id="status-text">Click or drag & drop supplier PDF(s) here</p>
+      <span class="text-xs text-slate-500 mt-1 block">PDFs up to 10MB each</span>
+    </div>
+
+    <button id="upload-btn" class="w-full mt-6 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 rounded-lg transition disabled:opacity-50" disabled>
+      Generate Master Excel Sheet
+    </button>
+  </div>
+
+  <script>
+    const fileInput = document.getElementById('file-input');
+    const dropArea = document.getElementById('drop-area');
+    const uploadBtn = document.getElementById('upload-btn');
+    const statusText = document.getElementById('status-text');
+    let selectedFiles = [];
+
+    dropArea.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+    function handleFiles(files) {
+      selectedFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.pdf'));
+      if (selectedFiles.length > 0) {
+        statusText.innerText = `Selected ${selectedFiles.length} file(s):\n` + selectedFiles.map(f => f.name).join(', ');
+        uploadBtn.disabled = false;
+      }
+    }
+
+    uploadBtn.addEventListener('click', async () => {
+      if (selectedFiles.length === 0) return;
+      uploadBtn.disabled = true;
+      uploadBtn.innerText = `Processing ${selectedFiles.length} file(s) with AI...`;
+
+      const formData = new FormData();
+      selectedFiles.forEach(file => {
+        formData.append("files", file);
+      });
+
+      try {
+        const res = await fetch("http://localhost:8000/api/parse", {
+          method: "POST",
+          body: formData
+        });
+
+        if (!res.ok) throw new Error("Processing failed on server.");
+
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "master_bids_extracted.xlsx";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        uploadBtn.innerText = "Download Complete! Process More";
+        uploadBtn.disabled = false;
+      } catch (err) {
+        alert("Error: " + err.message);
+        uploadBtn.innerText = "Try Again";
+        uploadBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
