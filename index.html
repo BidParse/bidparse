@@ -49,39 +49,68 @@
     }
 
     uploadBtn.addEventListener('click', async () => {
-      if (selectedFiles.length === 0) return;
-      uploadBtn.disabled = true;
-      uploadBtn.innerText = `Processing ${selectedFiles.length} file(s) with AI...`;
+    if (selectedFiles.length === 0) return;
 
-      const formData = new FormData();
-      selectedFiles.forEach(file => {
+    // Check LocalStorage for permanent tracking
+    let parseCount = parseInt(localStorage.getItem('bidparse_usage')) || 0;
+    
+    // If they hit 3, block them and show the paywall immediately
+    if (parseCount >= 3) {
+        document.getElementById('paywall-modal').classList.remove('hidden');
+        return;
+    }
+
+    // Disable button and start cycling loading text
+    uploadBtn.disabled = true;
+    const loadingMessages = ["Reading PDFs...", "Extracting line items...", "Formatting Excel..."];
+    let msgIndex = 0;
+    uploadBtn.innerText = loadingMessages[msgIndex];
+    const textCycle = setInterval(() => {
+        msgIndex = (msgIndex + 1) % loadingMessages.length;
+        uploadBtn.innerText = loadingMessages[msgIndex];
+    }, 4000); // Changes text every 4 seconds
+
+    const formData = new FormData();
+    selectedFiles.forEach(file => {
         formData.append("files", file);
-      });
+    });
 
-      try {
+    try {
         const res = await fetch("/api/parse", {
-          method: "POST",
-          body: formData
+            method: "POST",
+            body: formData
         });
 
         if (!res.ok) throw new Error("Processing failed on server.");
 
         const blob = await res.blob();
         const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
+        const a = document.createElement('a');
         a.href = url;
-        a.download = "master_bids_extracted.xlsx";
+        a.download = "BidParse_Master.xlsx";
         document.body.appendChild(a);
         a.click();
-        a.remove();
-        uploadBtn.innerText = "Download Complete! Process More";
-        uploadBtn.disabled = false;
-      } catch (err) {
+        window.URL.revokeObjectURL(url);
+
+        // Increase their permanent count by 1 and save it
+        parseCount++;
+        localStorage.setItem('bidparse_usage', parseCount);
+
+        // Check if that was their last free try
+        if (parseCount >= 3) {
+            setTimeout(() => {
+                document.getElementById('paywall-modal').classList.remove('hidden');
+            }, 1500); // Shows paywall 1.5 seconds after download finishes
+        }
+
+    } catch (err) {
         alert("Error: " + err.message);
-        uploadBtn.innerText = "Try Again";
+    } finally {
+        clearInterval(textCycle);
+        uploadBtn.innerText = "Generate Excel Master";
         uploadBtn.disabled = false;
-      }
-    });
+    }
+});
   </script>
 </body>
 </html>
